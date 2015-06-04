@@ -1,0 +1,50 @@
+
+# we use '../' because this makefile is always included
+# one folder below
+include ../Makefile.config
+
+C_SOURCES := $(shell find -name "*.c")
+
+GENERATED_FILES :=
+
+# if there are C sources, use them, otherwise search for IR files
+ifneq "$(strip $(C_SOURCES))" ""
+IR_FILES := $(patsubst %.c,%.ll,$(C_SOURCES))
+GENERATED_FILES += $(IR_FILES)
+else
+IR_FILES := $(shell find -name "*.ll")
+endif
+
+# if there are IR files, use them, otherwise search of asm files
+ifneq "$(strip $(IR_FILES))" ""
+ASM_FILES := $(patsubst %.ll,%.s,$(IR_FILES))
+GENERATED_FILES += $(ASM_FILES)
+else
+ASM_FILES := $(shell find -name "*.s")
+endif
+
+# if there are asm files, use them, otherwise search for obj files
+# NOTE: we do not handle object files right now because the asm parser has a few bugs
+ifneq "$(strip $(ASM_FILES))" ""
+#OBJ_FILES := $(patsubst %.s,%.o,$(ASM_FILES))
+#GENERATED_FILES += $(OBJ_FILES)
+else
+#OBJ_FILES := $(shell find -name "*.o")
+endif
+
+
+all: $(IR_FILES) $(ASM_FILES) $(OBJ_FILES)
+
+rebuild: clean all
+
+clean:
+	rm -rf $(GENERATED_FILES)
+
+%.ll: %.c
+	$(CC) -c -S -emit-llvm $(CFLAGS) $< -o $@
+
+%.s: %.ll
+	$(LLC) -filetype=asm $(LLCFLAGS) $< -o $@
+
+%.o: %.s
+	$(MC) -filetype=obj $(MCFLAGS) $< -o $@
